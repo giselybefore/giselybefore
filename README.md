@@ -16,7 +16,3 @@
 </div> 
 
  ##
- 
-<div> 
-   ![Snake animation](https://github.com/giselybefore/giselybefore/blob/output/github-contribution-grid-snake.svg)
-</div>
