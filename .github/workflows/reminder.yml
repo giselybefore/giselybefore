@@ -14,7 +14,7 @@ jobs:
       - name: Buscar PRs abertas
         run: |
           # Lista todas as PRs abertas
-          gh pr list --state open --json title,reviewDecision,requestedReviewers --jq '.[] | select(.reviewDecision != "APPROVED")' > prs_abertas.json
+          gh pr list --state open --json title,reviewDecision,reviews --jq '.[] | select(.reviewDecision != "APPROVED")' > prs_abertas.json
 
       - name: Enviar Lembretes para Google Chat
         env:
