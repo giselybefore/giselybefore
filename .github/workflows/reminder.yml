@@ -24,7 +24,7 @@ jobs:
           if [ -s prs_abertas.json ]; then
             cat prs_abertas.json | jq -r '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
               # Verifica PRs abertas sem revisores aprovando
-              if [[ $(echo $pr | jq -r '.requestedReviewers | length') -ge 2 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
+              if [[ $(echo $pr | jq -r '.requestedReviewers | length') -ge 1 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
                 # PR aberto sem revisores aprovando no chat
                 curl -X POST -H "Content-Type: application/json" \
                 -d "{\"text\":\"PR aberta. Revisores, favor sinalizar a atuação: $(echo $pr | jq -r '.title')\"}" \
