@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configurar GitHub CLI
-        run: gh auth login --with-token ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth login --with-token ${{ secrets.GT_TOKEN }}
 
       - name: Buscar PRs abertas
         run: |
