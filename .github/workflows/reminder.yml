@@ -25,10 +25,10 @@ jobs:
             cat prs_abertas.json | jq -r '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
               
               # Verifica PRs abertas sem revisores aprovando
-              if [[ $(echo $pr | jq -r '.requestedReviewers | length') == null]] || [[ $(echo $pr | jq -r '.requestedReviewers | length') -eq 0 ]]; then
+              if [[ $(echo $pr | jq -r '.reviews | length') == null]] || [[ $(echo $pr | jq -r '.reviews | length') -eq 0 ]]; then
               curl -X POST -H "Content-Type: application/json" \
               -d "{\"text\":\"PR aberta sem revisores aprovando: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
-              elifif [[ $(echo $pr | jq -r '.requestedReviewers | length') -ge 2 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
+              elifif [[ $(echo $pr | jq -r '.reviews | length') -ge 2 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
                 
                 # PR aberto sem revisores aprovando no chat
                 curl -X POST -H "Content-Type: application/json" \
@@ -36,7 +36,7 @@ jobs:
               fi
 
               # Verifica PRs abertas com revisores aprovando
-              if [[ $(echo $pr | jq -r '.reviewDecision') == "APPROVED" ]] && [[ $(echo $pr | jq -r '.requestedReviewers | length') -eq 2 ]]; then
+              if [[ $(echo $pr | jq -r '.reviewDecision') == "APPROVED" ]] && [[ $(echo $pr | jq -r '.reviews | length') -eq 2 ]]; then
                 # PR aprovada mas no chat não tem ícone igual a "marca de seleção"
                 curl -X POST -H "Content-Type: application/json" \
                 -d "{\"text\":\"PR aprovada, favor, último revisor realize o merge: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
