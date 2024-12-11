@@ -8,45 +8,47 @@ jobs:
   reminder:
     runs-on: ubuntu-latest
     steps:
+      # Configurar GitHub CLI com token
       - name: Configurar GitHub CLI
-        run: gh auth login --with-token ${{ secrets.GT_TOKEN }}
+        run: echo "${{ secrets.GT_TOKEN }}" | gh auth login --with-token
 
+      # Buscar PRs abertas
       - name: Buscar PRs abertas
         run: |
-          # Lista todas as PRs abertas
-          gh pr list --state open --json title,reviewDecision,reviews --jq '.[] | select(.reviewDecision != "APPROVED")' > prs_abertas.json
+          gh pr list --state open --json title,reviewDecision,reviews,merged --jq '.' > prs_abertas.json
+          cat prs_abertas.json
 
+      # Enviar lembretes para Google Chat
       - name: Enviar Lembretes para Google Chat
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
-          # Verifica se há PRs abertas
           if [ -s prs_abertas.json ]; then
-            cat prs_abertas.json | jq -r '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
-              
-              # Verifica PRs abertas sem revisores aprovando
-              if [[ $(echo $pr | jq -r '.reviews.totalCount | length') == null]] || [[ $(echo $pr | jq -r '.reviews.totalCount | length') -eq 0 ]]; then
-              curl -X POST -H "Content-Type: application/json" \
-              -d "{\"text\":\"PR aberta sem revisores aprovando: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
-              elif [[ $(echo $pr | jq -r '.reviews.totalCount | length') -ge 2 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
-                
-                # PR aberto sem revisores aprovando no chat
-                curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aberta, revisores, favor sinalizar atuação: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
-              fi
+            cat prs_abertas.json | jq -c '.[]' | while read -r pr; do
+              title=$(echo $pr | jq -r '.title')
+              reviewDecision=$(echo $pr | jq -r '.reviewDecision')
+              reviews=$(echo $pr | jq -r '.reviews | length')
+              merged=$(echo $pr | jq -r '.merged')
 
-              # Verifica PRs abertas com revisores aprovando
-              if [[ $(echo $pr | jq -r '.reviewDecision') == "APPROVED" ]] && [[ $(echo $pr | jq -r '.reviews.totalCount | length') -eq 2 ]]; then
-                # PR aprovada mas no chat não tem ícone igual a "marca de seleção"
+              # Verifica PR sem nenhuma aprovação
+              if [[ $reviews -eq 0 ]]; then
                 curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aprovada, favor, último revisor realize o merge: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
-              fi
+                -d "{\"text\":\"PR aberta sem revisões: $title\"}" $WEBHOOK_URL
 
-              # Verifica PRs abertas que ainda não foram merge
-              if [[ $(echo $pr | jq -r '.merged') == "false" ]]; then
-                # PR aberta sem estar mergeada
+              # Verifica PR com menos de 2 revisores
+              elif [[ $reviews -lt 2 ]] && [[ $reviewDecision != "APPROVED" ]]; then
                 curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR sem merge: $(echo $pr | jq -r '.title')\"}" \$WEBHOOK_URL
+                -d "{\"text\":\"PR $title está aguardando revisões (apenas $reviews revisores até agora).\"}" $WEBHOOK_URL
+
+              # Verifica PR com duas aprovações, mas sem merge
+              elif [[ $reviewDecision == "APPROVED" ]] && [[ $merged == "false" ]]; then
+                curl -X POST -H "Content-Type: application/json" \
+                -d "{\"text\":\"PR aprovada, mas ainda não foi mergeada: $title\"}" $WEBHOOK_URL
+
+              # Verifica PR onde mudanças foram solicitadas
+              elif [[ $reviewDecision == "CHANGES_REQUESTED" ]]; then
+                curl -X POST -H "Content-Type: application/json" \
+                -d "{\"text\":\"PR $title está aguardando alterações solicitadas pelos revisores.\"}" $WEBHOOK_URL
               fi
             done
           fi
