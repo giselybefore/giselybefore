@@ -1,50 +1,29 @@
-name: PR Approval Reminder
-on:
-  schedule:
-    # Executa a cada 5 minutos
-    - cron: '*/1 * * * *' 
-
-jobs:
-  reminder:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configurar GitHub CLI
-        run: gh auth login --with-token ${{ secrets.GT_TOKEN }}
-
-      - name: Buscar PRs abertas
-        run: |
-          # Lista todas as PRs abertas
-          gh pr list --state open --json title,reviewDecision,requestedReviewers --jq '.[] | select(.reviewDecision != "APPROVED")' > prs_abertas.json
-
-      - name: Enviar Lembretes para Google Chat
-        env:
-          WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-        run: |
-          # Verifica se há PRs abertas
-          if [ -s prs_abertas.json ]; then
-            cat prs_abertas.json | jq -r '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
-              # Verifica PRs abertas sem revisores aprovando
-              if [[ $(echo $pr | jq -r '.requestedReviewers | length') -ge 1 ]] && [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
-                # PR aberto sem revisores aprovando no chat
-                curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aberta. Revisores, favor sinalizar a atuação: $(echo $pr | jq -r '.title')\"}" \
-                $WEBHOOK_URL
-              fi
-
-              # Verifica PRs abertas com revisores aprovando
-              if [[ $(echo $pr | jq -r '.reviewDecision') == "APPROVED" ]] && [[ $(echo $pr | jq -r '.requestedReviewers | length') -eq 2 ]]; then
-                # PR aprovada mas no chat não tem ícone igual a "check box verde"
-                curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aprovada. Favor realizar o Merge: $(echo $pr | jq -r '.title')\"}" \
-                $WEBHOOK_URL
-              fi
-
-              # Verifica PRs abertas que ainda não foram merge
-              if [[ $(echo $pr | jq -r '.merged') == "false" ]]; then
-                # PR aberta sem estar mergeada
-                curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aprovada. Favor realizar o Merge: $(echo $pr | jq -r '.title')\"}" \
-                $WEBHOOK_URL
-              fi
-            done
-          fi
+- name: Enviar Lembretes para Google Chat
+  env:
+    WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+  run: |
+    if [ -s prs_abertas.json ]; then
+      cat prs_abertas.json | jq -r '.[]' | while read -r pr; do
+        if [[ $(echo $pr | jq -r '.requestedReviewers | length') -eq 0 ]]; then
+          # PR aberta sem revisores aprovando no chat
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"text\":\"PR aberta sem revisores aprovando: $(echo $pr | jq -r '.title')\"}" \
+          $WEBHOOK_URL
+        elif [[ $(echo $pr | jq -r '.reviewDecision') != "APPROVED" ]]; then
+          # PR aberta sem duas aprovações no chat
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"text\":\"PR aberta sem duas aprovações: $(echo $pr | jq -r '.title')\"}" \
+          $WEBHOOK_URL
+        elif [[ $(echo $pr | jq -r '.reviewDecision') == "APPROVED" ]] && [[ $(echo $pr | jq -r '.requestedReviewers | length') -eq 2 ]]; then
+          # PR aprovada, mas no chat não tem ícone igual a "marca de seleção"
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"text\":\"PR aprovada, mas precisa verificar se foi merge: $(echo $pr | jq -r '.title')\"}" \
+          $WEBHOOK_URL
+        elif [[ $(echo $pr | jq -r '.merged') == "false" ]]; then
+          # PR aberta sem estar mergeada
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"text\":\"PR aberta sem merge: $(echo $pr | jq -r '.title')\"}" \
+          $WEBHOOK_URL
+        fi
+      done
+    fi
