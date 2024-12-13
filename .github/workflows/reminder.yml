@@ -1,7 +1,5 @@
 name: PR Approval Reminder
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -9,25 +7,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checar o repositório
-        uses: actions/checkout@v3 # Clona o repositório para o ambiente
+        uses: actions/checkout@v3
 
       - name: Configurar GitHub CLI
         run: gh auth login --with-token ${{ secrets.GT_TOKEN }}
 
       - name: Buscar PRs abertas
         run: |
-          # Lista todas as PRs abertas
           gh pr list --state open --json number,title,reviewDecision,reviews > prs_abertas.json
-          cat prs_abertas.json
+          echo "PRs abertas salvas em prs_abertas.json"
 
-      - name: Enviar Lembretes para Google Chat
+      - name: Verificar e Enviar Lembretes
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
-          # Verifica se há PRs abertas
-          if [ -s prs_abertas.json ]; then
-            cat prs_abertas.json | jq -r '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
-              curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aberta sem aprovação: $(echo $pr | jq -r '.title')\"}" $WEBHOOK_URL
-            done
+          # Verifica se o arquivo está vazio
+          if [ ! -s prs_abertas.json ]; then
+            echo "Nenhuma PR aberta encontrada."
+            exit 0
           fi
+
+          # Processa o arquivo JSON
+          cat prs_abertas.json | jq -c '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
+            PR_TITLE=$(echo $pr | jq -r '.title')
+
+            if [ -n "$WEBHOOK_URL" ]; then
+              curl -X POST -H "Content-Type: application/json" \
+                -d "{\"text\":\"PR aberta sem aprovação: $PR_TITLE\"}" $WEBHOOK_URL
+            else
+              echo "WEBHOOK_URL não configurado."
+              exit 1
+            fi
+          done
