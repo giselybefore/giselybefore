@@ -10,7 +10,7 @@ jobs:
     steps:
       # Configurar GitHub CLI com token
       - name: Configurar GitHub CLI
-        run: echo "${{ secrets.GT_TOKEN }}" | gh auth login --with-token
+        run: echo "${{secrets.GT_TOKEN}}" | gh auth login --with-token
 
       # Buscar PRs abertas
       - name: Buscar PRs abertas
