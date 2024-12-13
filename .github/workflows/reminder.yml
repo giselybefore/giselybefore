@@ -3,6 +3,7 @@ on:
   schedule:
     # Executa a cada 1 minuto
     - cron: '*/1 * * * *'
+  workflow_dispatch: # Permite execução manual
 
 jobs:
   reminder:
