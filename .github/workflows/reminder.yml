@@ -2,53 +2,35 @@ name: PR Approval Reminder
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pull-requests: read
-  
 jobs:
-  list-prs:
+  reminder:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-      
     steps:
       - name: Checar o repositório
         uses: actions/checkout@v3
-        
+
+      - name: Configurar GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GT_TOKEN }}
+        run: |
+          gh auth login --with-token $GH_TOKEN
       - name: Buscar PRs abertas
         run: |
           gh pr list --state open --json number,title,reviewDecision,reviews > prs_abertas.json
           echo "PRs abertas salvas em prs_abertas.json"
-
       - name: Verificar e Enviar Lembretes
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
           # Verifica se o arquivo está vazio
           if [ ! -s prs_abertas.json ]; then
             echo "Nenhuma PR aberta encontrada."
             exit 0
           fi
-
-          cat prs_abertas.json | jq -c '.[]' | while read -r pr; do
-            PR_NUMBER=$(echo $pr | jq -r '.number')
+          # Processa o arquivo JSON
+          cat prs_abertas.json | jq -c '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
             PR_TITLE=$(echo $pr | jq -r '.title')
-            REVIEW_DECISION=$(echo $pr | jq -r '.reviewDecision')
-            MERGEABLE=$(echo $pr | jq -r '.mergeable')
-            REVIEWS=$(echo $pr | jq -r '.reviews | length')
-
-            # Mensagem de status da PR
-            MESSAGE=""
-            if [ "$REVIEW_DECISION" != "APPROVED" ] && [ "$REVIEWS" -lt 2 ]; then
-              MESSAGE="A PR \`#${PR_NUMBER}\` (${PR_TITLE}) está aberta e ainda não possui revisores suficientes."
-            elif [ "$REVIEW_DECISION" == "APPROVED" ] && [ "$MERGEABLE" != "true" ]; then
-              MESSAGE="A PR \`#${PR_NUMBER}\` (${PR_TITLE}) foi aprovada mas ainda não foi mesclada."
-            fi
-
-            # Enviar notificação para o Google Chat
-            if [ -n "$MESSAGE" ]; then
+            if [ -n "$WEBHOOK_URL" ]; then
               curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"${MESSAGE}\"}" \
-                $WEBHOOK_URL
-            fi
-          done
+                -d "{\"text\":\"PR aberta sem aprovação: $PR_TITLE\"}" $WEBHOOK_URL
+            else
