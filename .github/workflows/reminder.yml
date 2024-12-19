@@ -30,15 +30,25 @@ jobs:
             exit 0
           fi
 
-          # Processa o arquivo JSON
-          cat prs_abertas.json | jq -c '.[] | select(.reviewDecision != "APPROVED")' | while read -r pr; do
+          cat prs_abertas.json | jq -c '.[]' | while read -r pr; do
+            PR_NUMBER=$(echo $pr | jq -r '.number')
             PR_TITLE=$(echo $pr | jq -r '.title')
+            REVIEW_DECISION=$(echo $pr | jq -r '.reviewDecision')
+            MERGEABLE=$(echo $pr | jq -r '.mergeable')
+            REVIEWS=$(echo $pr | jq -r '.reviews | length')
 
-            if [ -n "$WEBHOOK_URL" ]; then
+            # Mensagem de status da PR
+            MESSAGE=""
+            if [ "$REVIEW_DECISION" != "APPROVED" ] && [ "$REVIEWS" -lt 2 ]; then
+              MESSAGE="A PR \`#${PR_NUMBER}\` (${PR_TITLE}) está aberta e ainda não possui revisores suficientes."
+            elif [ "$REVIEW_DECISION" == "APPROVED" ] && [ "$MERGEABLE" != "true" ]; then
+              MESSAGE="A PR \`#${PR_NUMBER}\` (${PR_TITLE}) foi aprovada mas ainda não foi mesclada."
+            fi
+
+            # Enviar notificação para o Google Chat
+            if [ -n "$MESSAGE" ]; then
               curl -X POST -H "Content-Type: application/json" \
-                -d "{\"text\":\"PR aberta sem aprovação: $PR_TITLE\"}" $WEBHOOK_URL
-            else
-              echo "WEBHOOK_URL não configurado."
-              exit 1
+                -d "{\"text\":\"${MESSAGE}\"}" \
+                $WEBHOOK_URL
             fi
           done
