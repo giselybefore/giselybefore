@@ -2,27 +2,27 @@ name: PR Approval Reminder
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: read
+  
 jobs:
-  reminder:
+  list-prs:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      
     steps:
       - name: Checar o repositório
         uses: actions/checkout@v3
-
-      - name: Configurar GitHub CLI
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          gh auth login --with-token $GH_TOKEN
-
+        
       - name: Buscar PRs abertas
         run: |
           gh pr list --state open --json number,title,reviewDecision,reviews > prs_abertas.json
           echo "PRs abertas salvas em prs_abertas.json"
 
       - name: Verificar e Enviar Lembretes
-        env:
-          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
           # Verifica se o arquivo está vazio
           if [ ! -s prs_abertas.json ]; then
